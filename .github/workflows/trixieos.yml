@@ -8,54 +8,57 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Install deps
+    - name: Dependencies
       run: |
         sudo apt update
         sudo apt install -y \
-          build-essential git rsync cpio unzip \
-          libncurses5-dev libncursesw5-dev \
-          xorriso grub-pc-bin grub-efi-amd64-bin
+          build-essential git bc bison flex libssl-dev libelf-dev \
+          cpio rsync xorriso grub-pc-bin grub-efi-amd64-bin \
+          libncurses5-dev libncursesw5-dev wget
 
-    - name: Clone Buildroot
+    - name: Clone Buildroot (STABLE)
       run: |
         git clone https://github.com/buildroot/buildroot.git
         cd buildroot
         git checkout 2024.02
 
-    - name: Create TrixieOS defconfig
+    - name: Configure Buildroot (KERNEL DEFCONFIG FIXED)
       run: |
         cd buildroot
-        cat > configs/trixieos_defconfig << 'EOF'
-        BR2_x86_64=y
-        BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
+        make defconfig
 
-        BR2_TARGET_GENERIC_HOSTNAME="TrixieOS"
-        BR2_TARGET_GENERIC_ISSUE="TrixieOS - ProjectA tarafından yapıldı"
+        ./support/scripts/config \
+          --enable BR2_x86_64 \
+          --enable BR2_TOOLCHAIN_BUILDROOT_GLIBC \
+          --enable BR2_INIT_BUSYBOX \
+          --enable BR2_TARGET_GENERIC_GETTY \
+          --set-str BR2_TARGET_GENERIC_HOSTNAME "TrixieOS" \
+          --set-str BR2_TARGET_GENERIC_ISSUE "TrixieOS - ProjectA tarafından yapıldı" \
+          \
+          --enable BR2_LINUX_KERNEL \
+          --set-str BR2_LINUX_KERNEL_DEFCONFIG "x86_64_defconfig" \
+          \
+          --enable BR2_PACKAGE_XORG7 \
+          --enable BR2_PACKAGE_XSERVER_XORG_SERVER \
+          --enable BR2_PACKAGE_XINIT \
+          --enable BR2_PACKAGE_FLUXBOX \
+          \
+          --enable BR2_PACKAGE_GRUB2 \
+          --enable BR2_TARGET_ROOTFS_ISO9660 \
+          --set-str BR2_TARGET_ROOTFS_ISO9660_VOLUME_ID "TrixieOS"
 
-        BR2_INIT_BUSYBOX=y
+        make olddefconfig
 
-        BR2_LINUX_KERNEL=y
-        BR2_LINUX_KERNEL_USE_DEFCONFIG=y
-
-        BR2_PACKAGE_XORG7=y
-        BR2_PACKAGE_XSERVER_XORG_SERVER=y
-        BR2_PACKAGE_XINIT=y
-        BR2_PACKAGE_XTERM=y
-
-        BR2_PACKAGE_FLUXBOX=y
-
-        BR2_TARGET_ROOTFS_ISO9660=y
-        BR2_TARGET_ROOTFS_ISO9660_VOLUME_ID="TrixieOS"
-        EOF
-
-    - name: Build TrixieOS ISO
+    - name: Build ISO
       run: |
         cd buildroot
-        make trixieos_defconfig
         make -j$(nproc)
 
-    - name: Upload ISO
-      uses: actions/upload-artifact@v4
+    - name: Collect ISO
+      run: |
+        cp buildroot/output/images/rootfs.iso9660 TrixieOS.iso
+
+    - uses: actions/upload-artifact@v4
       with:
-        name: TrixieOS-ISO
-        path: buildroot/output/images/rootfs.iso9660
+        name: TrixieOS
+        path: TrixieOS.iso
