@@ -1,0 +1,61 @@
+name: Build TrixieOS (Buildroot Stable ISO)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Install deps
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          build-essential git rsync cpio unzip \
+          libncurses5-dev libncursesw5-dev \
+          xorriso grub-pc-bin grub-efi-amd64-bin
+
+    - name: Clone Buildroot
+      run: |
+        git clone https://github.com/buildroot/buildroot.git
+        cd buildroot
+        git checkout 2024.02
+
+    - name: Create TrixieOS defconfig
+      run: |
+        cd buildroot
+        cat > configs/trixieos_defconfig << 'EOF'
+        BR2_x86_64=y
+        BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
+
+        BR2_TARGET_GENERIC_HOSTNAME="TrixieOS"
+        BR2_TARGET_GENERIC_ISSUE="TrixieOS - ProjectA tarafından yapıldı"
+
+        BR2_INIT_BUSYBOX=y
+
+        BR2_LINUX_KERNEL=y
+        BR2_LINUX_KERNEL_USE_DEFCONFIG=y
+
+        BR2_PACKAGE_XORG7=y
+        BR2_PACKAGE_XSERVER_XORG_SERVER=y
+        BR2_PACKAGE_XINIT=y
+        BR2_PACKAGE_XTERM=y
+
+        BR2_PACKAGE_FLUXBOX=y
+
+        BR2_TARGET_ROOTFS_ISO9660=y
+        BR2_TARGET_ROOTFS_ISO9660_VOLUME_ID="TrixieOS"
+        EOF
+
+    - name: Build TrixieOS ISO
+      run: |
+        cd buildroot
+        make trixieos_defconfig
+        make -j$(nproc)
+
+    - name: Upload ISO
+      uses: actions/upload-artifact@v4
+      with:
+        name: TrixieOS-ISO
+        path: buildroot/output/images/rootfs.iso9660
